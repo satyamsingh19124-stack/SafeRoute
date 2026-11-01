@@ -14,7 +14,7 @@ last_search_time = 0
 
 
 def search_places(query):
-
+    """Find matching places in India."""
     global last_search_time
 
     query = query.strip()
@@ -22,54 +22,48 @@ def search_places(query):
     if not query:
         return []
 
-    if query in place_cache:
-        return place_cache[query]
+    cache_key = query.lower()
 
-    elapsed = time.time() - last_search_time
+    if cache_key in place_cache:
+        return place_cache[cache_key]
 
-    if elapsed < 1.5:
-        time.sleep(1.5 - elapsed)
+    elapsed = time.monotonic() - last_search_time
+    if elapsed < 1.1:
+        time.sleep(1.1 - elapsed)
 
     params = urlencode({
         "q": query,
-        "format": "json",
-        "limit": 5
+        "format": "jsonv2",
+        "limit": 5,
+        "countrycodes": "in",
+        "addressdetails": 1
     })
 
-    url = f"https://nominatim.openstreetmap.org/search?{params}"
+    url = "https://nominatim.openstreetmap.org/search?" + params
 
     req = Request(
         url,
         headers={
-            "User-Agent": "SafeRoute/1.0 (contact: your-email@example.com)"
+            "User-Agent": "SafeRouteStudentProject/1.0 (educational demo)"
         }
     )
 
-    try:
-        with urlopen(req, timeout=15) as response:
-            data = json.loads(response.read().decode())
+    with urlopen(req, timeout=15) as response:
+        data = json.loads(response.read().decode("utf-8"))
 
-        last_search_time = time.time()
+    last_search_time = time.monotonic()
 
-        results = []
+    results = []
 
-        for place in data:
-            results.append({
-                "name": place.get("display_name", ""),
-                "lat": float(place["lat"]),
-                "lon": float(place["lon"])
-            })
+    for item in data:
+        results.append({
+            "name": item.get("display_name", query),
+            "lat": float(item["lat"]),
+            "lon": float(item["lon"])
+        })
 
-        place_cache[query] = results
-
-        return results
-
-    except HTTPError as e:
-
-        if e.code == 429:
-            app.logger.warning("Nominatim rate limit reached")
-
-        raise
+    place_cache[cache_key] = results
+    return results
 
 
 
