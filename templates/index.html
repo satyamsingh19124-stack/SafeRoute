@@ -1,0 +1,656 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeRoute | Smart Navigation</title>
+
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+        }
+
+        header {
+            padding: 22px 7%;
+            background: #111c31;
+            border-bottom: 1px solid #29364c;
+        }
+
+        header h1 {
+            margin: 0;
+            color: #38bdf8;
+        }
+
+        header p { color: #94a3b8; }
+
+        main {
+            width: 90%;
+            max-width: 1200px;
+            margin: 30px auto;
+        }
+
+        .panel {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 22px;
+            margin-bottom: 22px;
+        }
+
+        .inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 14px;
+            align-items: end;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 9px;
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 13px;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: white;
+            font-size: 15px;
+        }
+
+        button {
+            padding: 14px 20px;
+            border: none;
+            border-radius: 8px;
+            background: #0284c7;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover { background: #0369a1; }
+
+        #status {
+            color: #cbd5e1;
+            margin-top: 16px;
+            line-height: 1.5;
+        }
+
+        #map {
+            height: 460px;
+            width: 100%;
+            border-radius: 12px;
+            background: #263449;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 14px;
+        }
+
+        .stat {
+            padding: 18px;
+            background: #0f172a;
+            border-radius: 10px;
+        }
+
+        .stat span {
+            display: block;
+            color: #94a3b8;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .stat strong { font-size: 23px; }
+
+        .route-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+        .route-card {
+            border: 1px solid #475569;
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 16px;
+            cursor: pointer;
+        }
+        .route-card.active { border: 2px solid #38bdf8; }
+        .route-card h3 { margin: 0 0 10px; color: #38bdf8; }
+        .route-card p { margin: 7px 0; color: #cbd5e1; font-size: 14px; }
+        @media (max-width: 900px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 700px) {
+            .inputs, .stats { grid-template-columns: 1fr; }
+            #map { height: 350px; }
+        }
+        
+.field {
+    position: relative;
+    min-width: 0;
+}
+
+.suggestions {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 250px;
+    overflow-y: auto;
+    margin-top: 5px;
+    background: #0f172a;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    box-shadow: 0 8px 20px #0005;
+}
+
+.suggestion-item {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    background: #0f172a;
+    color: white;
+    border: none;
+    border-bottom: 1px solid #334155;
+    border-radius: 0;
+    text-align: left;
+    font-weight: normal;
+    line-height: 1.5;
+    cursor: pointer;
+}
+
+.suggestion-item:hover {
+    background: #334155;
+}
+
+.suggestion-message {
+    padding: 12px;
+    color: #cbd5e1;
+    font-size: 13px;
+}
+
+        .facility-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+        .facility-column { min-width:0; background:#0f172a; border:1px solid #334155; border-radius:12px; padding:16px; }
+        .facility-heading { margin:0 0 12px; font-size:18px; }
+        .hospital-heading { color:#34d399; }
+        .police-heading { color:#38bdf8; }
+        .facility-list { display:flex; flex-direction:column; gap:9px; }
+        .facility-item { width:100%; text-align:left; background:#1e293b; border:1px solid #475569; border-radius:9px; padding:12px; color:#f8fafc; }
+        .facility-item:hover { background:#334155; }
+        .facility-name { display:block; font-weight:bold; margin-bottom:5px; }
+        .facility-meta { display:block; color:#cbd5e1; font-size:13px; font-weight:normal; }
+        .empty-facilities { color:#94a3b8; margin:4px 0; line-height:1.5; }
+        @media (max-width:700px) { .facility-grid { grid-template-columns:1fr; } }
+
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>🛡️ SafeRoute</h1>
+        <p>Smart navigation with safety insights</p>
+    </header>
+
+    <main>
+        <section class="panel">
+            <h2>Plan your journey</h2>
+
+            <div class="inputs">
+                <div>
+                    <label for="start">Starting location</label>
+                    <input id="start"
+                        value="Greater Noida, India"
+                        placeholder="Search starting location"
+                        autocomplete="off">
+
+                <div id="startSuggestions" class="suggestions"></div>
+                </div>
+
+                <div>
+                    <label for="destination">Destination</label>
+                    <input id="destination"
+                        placeholder="Search destination"
+                        autocomplete="off">
+
+<div id="destinationSuggestions" class="suggestions"></div>
+                </div>
+
+                <button id="findRoute">Find route</button>
+            </div>
+
+            <p id="status">
+                Enter your destination to start planning your route.
+            </p>
+        </section>
+
+        <section class="panel">
+            <h2>Your map</h2>
+            <div id="map"></div>
+        </section>
+
+        <section class="panel">
+            <h2>Nearby emergency facilities</h2>
+            <p style="color:#94a3b8">Facilities mapped within 500 metres of the selected route. Select a facility to locate it on the map.</p>
+            <div class="facility-grid">
+                <div class="facility-column">
+                    <h3 class="facility-heading hospital-heading">🏥 Hospitals</h3>
+                    <div id="hospitalList" class="facility-list"><p class="empty-facilities">Find a route to see nearby hospitals.</p></div>
+                </div>
+                <div class="facility-column">
+                    <h3 class="facility-heading police-heading">🚓 Police stations</h3>
+                    <div id="policeList" class="facility-list"><p class="empty-facilities">Find a route to see nearby police stations.</p></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Journey overview</h2>
+
+            <div class="stats">
+                <div class="stat">
+                    <span>Distance</span>
+                    <strong id="distance">--</strong>
+                </div>
+
+                <div class="stat">
+                    <span>Estimated time</span>
+                    <strong id="duration">--</strong>
+                </div>
+
+                <div class="stat">
+                    <span>Safety index</span>
+                    <strong id="safety">Pending</strong>
+                </div>
+                <div class="stat">
+                    <span>Police stations (within 500 m)</span>
+                    <strong id="policeCount">--</strong>
+                </div>
+                <div class="stat">
+                    <span>Hospitals (within 500 m)</span>
+                    <strong id="hospitalCount">--</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Compare route options</h2>
+            <p style="color:#94a3b8">Select a route to view its safety index and mapped support facilities.</p>
+            <div id="routeOptions" class="route-options"></div>
+        </section>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    
+
+<script>
+const map = L.map("map").setView([28.4670734, 77.5137649], 12);
+
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors"
+}).addTo(map);
+
+let routeLayers = [];
+let locationMarkers = [];
+let facilityMarkers = [];
+let currentRoutes = [];
+let activeRouteIndex = 0;
+
+const selectedPlaces = {
+    start: null,
+    destination: null
+};
+
+const inputs = {
+    start: document.getElementById("start"),
+    destination: document.getElementById("destination")
+};
+
+const suggestionBoxes = {
+    start: document.getElementById("startSuggestions"),
+    destination: document.getElementById("destinationSuggestions")
+};
+
+function setStatus(message) {
+    document.getElementById("status").textContent = message;
+}
+
+function showMessage(container, message) {
+    container.replaceChildren();
+
+    const div = document.createElement("div");
+    div.className = "suggestion-message";
+    div.textContent = message;
+
+    container.appendChild(div);
+    container.style.display = "block";
+}
+
+function closeSuggestions(container) {
+    container.replaceChildren();
+    container.style.display = "none";
+}
+
+function setupSearch(key) {
+    const input = inputs[key];
+    const container = suggestionBoxes[key];
+    let timer = null;
+    let searchNumber = 0;
+    let controller = null;
+
+    input.addEventListener("input", function () {
+        clearTimeout(timer);
+
+        if (controller) controller.abort();
+
+        const thisSearch = ++searchNumber;
+        selectedPlaces[key] = null;
+
+        const query = input.value.trim();
+        closeSuggestions(container);
+
+        if (query.length < 3) return;
+
+        showMessage(container, "Searching places...");
+
+        timer = setTimeout(async function () {
+            controller = new AbortController();
+
+            try {
+                const response = await fetch(
+                    "/api/search?q=" + encodeURIComponent(query),
+                    { signal: controller.signal }
+                );
+
+                const data = await response.json();
+
+                if (thisSearch !== searchNumber) return;
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Search failed.");
+                }
+
+                closeSuggestions(container);
+
+                if (!data.results || data.results.length === 0) {
+                    showMessage(container, "No places found. Try another name.");
+                    return;
+                }
+
+                data.results.forEach(function (place) {
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.className = "suggestion-item";
+                    button.textContent = place.name;
+
+                    button.addEventListener("click", function () {
+                        selectedPlaces[key] = {
+                            name: place.name,
+                            lat: Number(place.lat),
+                            lon: Number(place.lon)
+                        };
+
+                        input.value = place.name;
+                        closeSuggestions(container);
+
+                        setStatus(
+                            (key === "start" ? "Starting location" : "Destination") +
+                            " selected. Select the other location next."
+                        );
+                    });
+
+                    container.appendChild(button);
+                });
+
+                container.style.display = "block";
+
+            } catch (error) {
+                if (error.name !== "AbortError" &&
+                    thisSearch === searchNumber) {
+                    showMessage(container, error.message);
+                }
+            }
+        }, 800);
+    });
+}
+
+setupSearch("start");
+setupSearch("destination");
+
+document.addEventListener("click", function (event) {
+    for (const key of ["start", "destination"]) {
+        if (!inputs[key].contains(event.target) &&
+            !suggestionBoxes[key].contains(event.target)) {
+            closeSuggestions(suggestionBoxes[key]);
+        }
+    }
+});
+
+function renderRouteOptions() {
+    const container = document.getElementById("routeOptions");
+    container.replaceChildren();
+
+    currentRoutes.forEach(function (route, index) {
+        const safety = route.safety || {};
+        const card = document.createElement("div");
+        card.className = "route-card" + (index === activeRouteIndex ? " active" : "");
+        card.tabIndex = 0;
+        card.setAttribute("role", "button");
+        card.innerHTML = `
+            <h3>Route ${index + 1}</h3>
+            <p><strong>${route.distance_km} km</strong> · ${route.duration_min} min</p>
+            <p>Safety index: <strong>${safety.score == null ? "Unavailable" : safety.score + "/100"}</strong></p>
+            <p>Police stations: ${safety.police_stations ?? "Unavailable"}</p>
+            <p>Hospitals: ${safety.hospitals ?? "Unavailable"}</p>
+        `;
+        card.addEventListener("click", () => selectRoute(index));
+        card.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                selectRoute(index);
+            }
+        });
+        container.appendChild(card);
+    });
+}
+
+function renderFacilities(safety) {
+    const hospitalList = document.getElementById("hospitalList");
+    const policeList = document.getElementById("policeList");
+
+    // Remove markers belonging to the previously selected route.
+    facilityMarkers.forEach(marker => map.removeLayer(marker));
+    facilityMarkers = [];
+
+    function renderList(container, facilities, type, emoji) {
+        container.replaceChildren();
+        if (!facilities || facilities.length === 0) {
+            const empty = document.createElement("p");
+            empty.className = "empty-facilities";
+            empty.textContent = safety.score == null
+                ? (safety.message || "Facility data is temporarily unavailable. Please try again.")
+                : `No ${type.toLowerCase()} found in the mapped OpenStreetMap data within 500 m of this route.`;
+            container.appendChild(empty);
+            return;
+        }
+
+        facilities.forEach((facility, i) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "facility-item";
+
+            const name = document.createElement("span");
+            name.className = "facility-name";
+            name.textContent = `${emoji} ${facility.name || `Unnamed ${type}`}`;
+
+            const meta = document.createElement("span");
+            meta.className = "facility-meta";
+            meta.textContent = `${facility.distance_m} m from route${facility.address ? " · " + facility.address : ""}`;
+
+            button.append(name, meta);
+            button.addEventListener("click", () => {
+                map.setView([facility.lat, facility.lon], 17);
+                const marker = facilityMarkers.find(m => m.facilityId === facility.id);
+                if (marker) marker.openPopup();
+            });
+            container.appendChild(button);
+
+            const marker = L.marker([facility.lat, facility.lon]).addTo(map);
+            marker.facilityId = facility.id;
+            marker.bindPopup(`<strong>${escapeHtml(facility.name || `Unnamed ${type}`)}</strong><br>${facility.distance_m} m from route`);
+            facilityMarkers.push(marker);
+        });
+    }
+
+    renderList(hospitalList, safety.hospital_facilities || [], "hospitals", "🏥");
+    renderList(policeList, safety.police_facilities || [], "police stations", "🚓");
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[char]);
+}
+
+function selectRoute(index) {
+    if (!currentRoutes[index]) return;
+    activeRouteIndex = index;
+    const route = currentRoutes[index];
+    const safety = route.safety || {};
+
+    routeLayers.forEach((layer, i) => {
+        layer.setStyle({
+            weight: i === index ? 8 : 4,
+            opacity: i === index ? 1 : 0.45
+        });
+    });
+
+    document.getElementById("distance").textContent = route.distance_km + " km";
+    document.getElementById("duration").textContent = route.duration_min + " min";
+    document.getElementById("safety").textContent =
+        safety.score == null ? "Unavailable" : safety.score + "/100";
+    document.getElementById("policeCount").textContent =
+        safety.score == null ? "Unavailable" : safety.police_stations;
+    document.getElementById("hospitalCount").textContent =
+        safety.score == null ? "Unavailable" : safety.hospitals;
+
+    renderFacilities(safety);
+    renderRouteOptions();
+}
+
+async function findRoute() {
+    const start = selectedPlaces.start;
+    const destination = selectedPlaces.destination;
+    const status = document.getElementById("status");
+    const button = document.getElementById("findRoute");
+
+    if (!start || !destination) {
+        setStatus("Search for both locations and select a suggestion for each.");
+        return;
+    }
+
+    button.disabled = true;
+    status.textContent = "Calculating route...";
+
+    try {
+        const params = new URLSearchParams({
+            start: start.name,
+            destination: destination.name,
+            start_lat: start.lat,
+            start_lon: start.lon,
+            dest_lat: destination.lat,
+            dest_lon: destination.lon
+        });
+
+        const response = await fetch("/api/route?" + params.toString());
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Could not calculate route.");
+        }
+
+        routeLayers.forEach(layer => map.removeLayer(layer));
+        locationMarkers.forEach(marker => map.removeLayer(marker));
+
+        routeLayers = [];
+        locationMarkers = [];
+
+        currentRoutes = data.routes;
+        activeRouteIndex = 0;
+        const colors = ["#38bdf8", "#f59e0b", "#a78bfa", "#34d399"];
+
+        data.routes.forEach(function (route, index) {
+            const coordinates = route.geometry.coordinates.map(
+                point => [point[1], point[0]]
+            );
+
+            const layer = L.polyline(coordinates, {
+                color: colors[index % colors.length],
+                weight: index === 0 ? 7 : 5,
+                opacity: index === 0 ? 0.95 : 0.65
+            }).addTo(map);
+
+            const safety = route.safety || {};
+            layer.bindPopup(
+                "Route " + (index + 1) +
+                "<br>Distance: " + route.distance_km + " km" +
+                "<br>Estimated time: " + route.duration_min + " min" +
+                "<br>Safety index: " + (safety.score == null ? "Unavailable" : safety.score + "/100") +
+                "<br>Police stations: " + (safety.police_stations ?? "Unavailable") +
+                "<br>Hospitals: " + (safety.hospitals ?? "Unavailable")
+            );
+
+            layer.on("click", function () { selectRoute(index); });
+            routeLayers.push(layer);
+        });
+        renderRouteOptions();
+
+        const startPoint = [start.lat, start.lon];
+        const endPoint = [destination.lat, destination.lon];
+
+        locationMarkers.push(
+            L.marker(startPoint).addTo(map).bindPopup("Starting point")
+        );
+
+        locationMarkers.push(
+            L.marker(endPoint).addTo(map).bindPopup("Destination")
+        );
+
+        const bounds = L.latLngBounds([startPoint, endPoint]);
+
+        routeLayers.forEach(layer => bounds.extend(layer.getBounds()));
+        map.fitBounds(bounds, { padding: [35, 35] });
+
+        selectRoute(0);
+
+        setStatus(
+            "Route found! " + data.routes.length +
+            " route option(s) displayed. Facility counts use OpenStreetMap data within 500 m of each route."
+        );
+
+    } catch (error) {
+        setStatus(error.message);
+    } finally {
+        button.disabled = false;
+    }
+}
+
+document.getElementById("findRoute").addEventListener("click", findRoute);
+</script>
