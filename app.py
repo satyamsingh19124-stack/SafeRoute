@@ -14,7 +14,7 @@ last_search_time = 0
 
 
 def search_places(query):
-    """Find matching places in India."""
+
     global last_search_time
 
     query = query.strip()
@@ -22,48 +22,54 @@ def search_places(query):
     if not query:
         return []
 
-    cache_key = query.lower()
+    if query in place_cache:
+        return place_cache[query]
 
-    if cache_key in place_cache:
-        return place_cache[cache_key]
+    elapsed = time.time() - last_search_time
 
-    elapsed = time.monotonic() - last_search_time
-    if elapsed < 1.1:
-        time.sleep(1.1 - elapsed)
+    if elapsed < 1.5:
+        time.sleep(1.5 - elapsed)
 
     params = urlencode({
         "q": query,
-        "format": "jsonv2",
-        "limit": 5,
-        "countrycodes": "in",
-        "addressdetails": 1
+        "format": "json",
+        "limit": 5
     })
 
-    url = "https://nominatim.openstreetmap.org/search?" + params
+    url = f"https://nominatim.openstreetmap.org/search?{params}"
 
     req = Request(
         url,
         headers={
-            "User-Agent": "SafeRouteStudentProject/1.0 (educational demo)"
+            "User-Agent": "SafeRoute/1.0 (contact: your-email@example.com)"
         }
     )
 
-    with urlopen(req, timeout=15) as response:
-        data = json.loads(response.read().decode("utf-8"))
+    try:
+        with urlopen(req, timeout=15) as response:
+            data = json.loads(response.read().decode())
 
-    last_search_time = time.monotonic()
+        last_search_time = time.time()
 
-    results = []
+        results = []
 
-    for item in data:
-        results.append({
-            "name": item.get("display_name", query),
-            "lat": float(item["lat"]),
-            "lon": float(item["lon"])
-        })
+        for place in data:
+            results.append({
+                "name": place.get("display_name", ""),
+                "lat": float(place["lat"]),
+                "lon": float(place["lon"])
+            })
 
-    place_cache[cache_key] = results
-    return results
+        place_cache[query] = results
+
+        return results
+
+    except HTTPError as e:
+
+        if e.code == 429:
+            app.logger.warning("Nominatim rate limit reached")
+
+        raise
 
 
 
@@ -435,5 +441,3 @@ def get_route():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
